@@ -1,4 +1,5 @@
 const statusEl = document.getElementById('status');
+const statusTextEl = document.getElementById('statusText');
 const lxEl = document.getElementById('lx');
 const lyEl = document.getElementById('ly');
 const lastActionEl = document.getElementById('lastAction');
@@ -99,24 +100,41 @@ function showAction(text) {
   lastActionEl.textContent = text;
 }
 
+function chip(text) {
+  return `<span class="btn-chip">${text}</span>`;
+}
+
+function row(buttons, description) {
+  const group = Array.isArray(buttons)
+    ? `<div class="btn-group">${buttons.map(chip).join('')}</div>`
+    : chip(buttons);
+  return `${group}<div class="control-desc">${description}</div>`;
+}
+
 function updateHint() {
   const hintEl = document.getElementById('hint');
   if (!hintEl) return;
   const L = activeLabels;
+  hintEl.className = '';
   hintEl.innerHTML = `
-    <strong>Controls (${controllerType === 'playstation' ? 'PlayStation' : 'Xbox'}):</strong>
-    Left stick moves the cursor.
-    <strong>${L[0]}</strong> = left click,
-    <strong>${L[1]}</strong> = right click,
-    <strong>${L[2]}</strong> = middle click.
-    <strong>Hold ${L[4]}</strong> = click &amp; drag.
-    <strong>Right stick up/down</strong> = scroll.
-    <strong>${L[9]}</strong> = Enter.
-    <strong>${L[8]}</strong> = Backspace.
-    <strong>${L[16]}</strong> = Close window (Alt+F4).
-    <strong>Hold ${L[3]}</strong> = Wispr Flow (Ctrl + Win).
-    <strong>${L[5]}</strong> = open / close on-screen keyboard.
-    <br><em>OSK mode:</em> Left stick navigates (flick to move), <strong>${L[0]}</strong> types the highlighted key, <strong>${L[1]}</strong> closes the OSK.
+    <div class="controls-grid">
+      ${row('Left stick', 'Move cursor')}
+      ${row('Right stick', 'Scroll (tilt harder to scroll faster)')}
+      ${row(L[0], 'Left click')}
+      ${row(L[1], 'Right click')}
+      ${row(L[2], 'Middle click')}
+      ${row([`Hold ${L[4]}`], 'Click &amp; drag')}
+      ${row([`Hold ${L[3]}`], 'Wispr Flow — Ctrl + Win')}
+      ${row(L[9], 'Enter')}
+      ${row(L[8], 'Backspace')}
+      ${row(L[16], 'Close window — Alt + F4')}
+      ${row(L[5], 'Open / close on-screen keyboard')}
+    </div>
+    <div class="osk-note">
+      <strong>On-screen keyboard mode:</strong>
+      Flick the left stick to move between keys.
+      ${chip(L[0])} types the highlighted key, ${chip(L[1])} closes the OSK.
+    </div>
   `;
 }
 
@@ -141,14 +159,14 @@ function releaseAllHolds() {
 window.addEventListener('gamepadconnected', (e) => {
   controllerType = detectControllerType(e.gamepad);
   activeLabels = controllerType === 'playstation' ? PS_LABELS : XBOX_LABELS;
-  statusEl.textContent = `Connected: ${e.gamepad.id}`;
+  statusTextEl.textContent = `Connected · ${e.gamepad.id}`;
   statusEl.classList.add('connected');
   updateHint();
 });
 
 window.addEventListener('gamepaddisconnected', () => {
   releaseAllHolds();
-  statusEl.textContent = 'Controller disconnected.';
+  statusTextEl.textContent = 'Controller disconnected';
   statusEl.classList.remove('connected');
 });
 
