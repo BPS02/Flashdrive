@@ -23,6 +23,7 @@ const HOLD_MOUSE = {
 const TAP_KEYS = {
   9: { keys: ['enter'], name: 'Enter' },
   8: { keys: ['backspace'], name: 'Backspace' },
+  16: { keys: ['alt', 'f4'], name: 'Close window (Alt+F4)' },
 };
 
 const XBOX_LABELS = {
@@ -101,6 +102,7 @@ function updateHint() {
     <strong>Right stick up/down</strong> = scroll.
     <strong>${L[9]}</strong> = Enter.
     <strong>${L[8]}</strong> = Backspace.
+    <strong>${L[16]}</strong> = Close window (Alt+F4).
     <strong>Hold ${L[3]}</strong> = Wispr Flow (Ctrl + Win).
   `;
 }

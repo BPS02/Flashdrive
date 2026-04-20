@@ -116,6 +116,7 @@ const KEY_NAMES = {
   escape: Key.Escape,
   delete: Key.Delete,
   backspace: Key.Backspace,
+  f4: Key.F4,
 };
 
 function resolveKeys(names) {
