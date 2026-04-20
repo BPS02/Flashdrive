@@ -82,9 +82,8 @@ app.on('window-all-closed', () => {
 ipcMain.handle('mouse:move-by', async (_event, dx, dy) => {
   try {
     const current = await mouse.getPosition();
-    const { width, height } = screen.getPrimaryDisplay().size;
-    const nextX = Math.min(Math.max(0, Math.round(current.x + dx)), width - 1);
-    const nextY = Math.min(Math.max(0, Math.round(current.y + dy)), height - 1);
+    const nextX = Math.round(current.x + dx);
+    const nextY = Math.round(current.y + dy);
     await mouse.setPosition(new Point(nextX, nextY));
   } catch (err) {
     console.error('mouse:move-by failed', err);

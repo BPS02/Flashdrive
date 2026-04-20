@@ -1,6 +1,6 @@
 {
   "name": "flashdrive",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Accessibility-focused gamepad-as-computer-input",
   "main": "src/main.js",
   "scripts": {
