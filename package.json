@@ -1,0 +1,35 @@
+{
+  "name": "flashdrive",
+  "version": "0.1.0",
+  "description": "Accessibility-focused gamepad-as-computer-input",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "^32.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "dependencies": {
+    "@nut-tree-fork/nut-js": "^4.2.0"
+  },
+  "build": {
+    "appId": "com.bps02.flashdrive",
+    "productName": "Flashdrive",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/@nut-tree-fork/**/*"
+    ],
+    "win": {
+      "target": "portable",
+      "artifactName": "Flashdrive-${version}.exe"
+    }
+  }
+}

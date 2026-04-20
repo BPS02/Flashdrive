@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Flashdrive — Mouse Control</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      background: #111;
+      color: #eee;
+      padding: 2rem;
+      margin: 0;
+      line-height: 1.5;
+    }
+    h1 { margin-top: 0; }
+    #status { color: #f88; font-size: 1.1rem; }
+    #status.connected { color: #8f8; }
+    .hint {
+      margin-top: 1.5rem;
+      padding: 1rem;
+      background: #1b1b1b;
+      border-left: 3px solid #3a5;
+      border-radius: 4px;
+    }
+    .stick-readout {
+      margin-top: 1rem;
+      font-family: "Consolas", monospace;
+      font-size: 0.9rem;
+      color: #aaa;
+    }
+  </style>
+</head>
+<body>
+  <h1>Flashdrive</h1>
+  <p id="status">No controller detected. Plug one in and press any button.</p>
+
+  <div id="hint" class="hint">
+    Plug in a controller and press any button to see mappings.
+  </div>
+
+  <div class="stick-readout">
+    Left stick: <span id="lx">0.00</span>, <span id="ly">0.00</span>
+    &nbsp;|&nbsp; Last action: <span id="lastAction">(none)</span>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
