@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Flashdrive OSK</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    overflow: hidden;
+    font-family: system-ui, sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  #osk {
+    background: rgba(18, 18, 18, 0.88);
+    color: #eee;
+    padding: 10px;
+    border-top: 2px solid #3a7;
+    box-shadow: 0 -4px 16px rgba(0,0,0,0.5);
+  }
+  .row {
+    display: flex;
+    gap: 4px;
+    justify-content: center;
+    margin: 4px 0;
+  }
+  .key {
+    min-width: 44px;
+    height: 44px;
+    background: #242424;
+    border: 2px solid #3a3a3a;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 600;
+    padding: 0 10px;
+    transition: transform 0.05s, background 0.05s;
+  }
+  .key.wide { min-width: 140px; }
+  .key.focus {
+    background: #3a7;
+    color: #000;
+    border-color: #8fc;
+    transform: scale(1.08);
+    box-shadow: 0 0 0 3px rgba(136, 255, 200, 0.4);
+  }
+  .key.special { font-size: 14px; color: #aaa; }
+  .key.special.focus { color: #000; }
+</style>
+</head>
+<body>
+<div id="osk"></div>
+
+<script>
+  const LAYOUT = [
+    ['q','w','e','r','t','y','u','i','o','p'],
+    ['a','s','d','f','g','h','j','k','l'],
+    ['z','x','c','v','b','n','m'],
+    ['space','backspace','enter','close'],
+  ];
+
+  const SPECIAL = {
+    space:     { label: 'Space',      wide: true },
+    backspace: { label: '\u232B Back' },
+    enter:     { label: '\u21B5 Enter' },
+    close:     { label: '\u2715 Close' },
+  };
+
+  let focusRow = 0;
+  let focusCol = 0;
+
+  function render() {
+    const root = document.getElementById('osk');
+    root.innerHTML = '';
+    LAYOUT.forEach((row, r) => {
+      const rowEl = document.createElement('div');
+      rowEl.className = 'row';
+      row.forEach((keyStr, c) => {
+        const k = document.createElement('div');
+        const meta = SPECIAL[keyStr];
+        k.className = 'key' + (meta ? ' special' : '') + (meta?.wide ? ' wide' : '');
+        if (r === focusRow && c === focusCol) k.classList.add('focus');
+        k.textContent = meta ? meta.label : keyStr.toUpperCase();
+        rowEl.appendChild(k);
+      });
+      root.appendChild(rowEl);
+    });
+  }
+
+  window.osk.onFocus((row, col) => {
+    focusRow = row;
+    focusCol = col;
+    render();
+  });
+
+  render();
+</script>
+</body>
+</html>

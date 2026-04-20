@@ -4,8 +4,11 @@ const { mouse, Point, Button, keyboard, Key } = require('@nut-tree-fork/nut-js')
 
 mouse.config.mouseSpeed = 2000;
 
+let mainWindow = null;
+let oskWindow = null;
+
 function createWindow() {
-  const win = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 700,
     height: 500,
     webPreferences: {
@@ -15,8 +18,36 @@ function createWindow() {
     },
   });
 
-  win.loadFile(path.join(__dirname, 'index.html'));
-  win.webContents.openDevTools({ mode: 'detach' });
+  mainWindow.loadFile(path.join(__dirname, 'index.html'));
+  mainWindow.webContents.openDevTools({ mode: 'detach' });
+}
+
+function createOskWindow() {
+  const { width: screenW, height: screenH } = screen.getPrimaryDisplay().workAreaSize;
+  const oskHeight = 240;
+  oskWindow = new BrowserWindow({
+    width: screenW,
+    height: oskHeight,
+    x: 0,
+    y: screenH - oskHeight,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    focusable: false,
+    skipTaskbar: true,
+    resizable: false,
+    movable: false,
+    hasShadow: false,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'osk-preload.js'),
+      contextIsolation: true,
+      backgroundThrottling: false,
+    },
+  });
+  oskWindow.setIgnoreMouseEvents(true);
+  oskWindow.loadFile(path.join(__dirname, 'osk.html'));
+  oskWindow.on('closed', () => { oskWindow = null; });
 }
 
 app.whenReady().then(createWindow);
@@ -151,5 +182,28 @@ ipcMain.handle('keys:tap', async (_event, names) => {
     await keyboard.releaseKey(...keys);
   } catch (err) {
     console.error('keys:tap failed', err);
+  }
+});
+
+ipcMain.handle('osk:toggle', async () => {
+  if (!oskWindow) createOskWindow();
+  if (oskWindow.isVisible()) {
+    oskWindow.hide();
+    return false;
+  }
+  oskWindow.showInactive();
+  return true;
+});
+
+ipcMain.handle('osk:focus', async (_event, row, col) => {
+  if (oskWindow) oskWindow.webContents.send('osk:focus', row, col);
+});
+
+ipcMain.handle('osk:type-char', async (_event, char) => {
+  if (!char) return;
+  try {
+    await keyboard.type(char);
+  } catch (err) {
+    console.error('osk:type-char failed', err);
   }
 });

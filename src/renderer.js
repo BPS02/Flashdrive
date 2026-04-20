@@ -26,6 +26,17 @@ const TAP_KEYS = {
   16: { keys: ['alt', 'f4'], name: 'Close window (Alt+F4)' },
 };
 
+const OSK_TOGGLE_BUTTON = 5;
+const OSK_LAYOUT = [
+  ['q','w','e','r','t','y','u','i','o','p'],
+  ['a','s','d','f','g','h','j','k','l'],
+  ['z','x','c','v','b','n','m'],
+  ['space','backspace','enter','close'],
+];
+let oskOpen = false;
+let oskRow = 0;
+let oskCol = 0;
+
 const XBOX_LABELS = {
   0: 'A', 1: 'B', 2: 'X', 3: 'Y',
   4: 'LB', 5: 'RB', 6: 'LT', 7: 'RT',
@@ -104,7 +115,27 @@ function updateHint() {
     <strong>${L[8]}</strong> = Backspace.
     <strong>${L[16]}</strong> = Close window (Alt+F4).
     <strong>Hold ${L[3]}</strong> = Wispr Flow (Ctrl + Win).
+    <strong>${L[5]}</strong> = open / close on-screen keyboard.
+    <br><em>OSK mode:</em> Left stick navigates (flick to move), <strong>${L[0]}</strong> types the highlighted key, <strong>${L[1]}</strong> closes the OSK.
   `;
+}
+
+const buttonWasDown = new Map();
+
+function releaseAllHolds() {
+  for (const [indexStr, { keys }] of Object.entries(HOLD_COMBOS)) {
+    const idx = Number(indexStr);
+    if (buttonWasDown.get(idx)) {
+      window.flashdrive.keysRelease(keys);
+    }
+  }
+  for (const [indexStr, { action }] of Object.entries(HOLD_MOUSE)) {
+    const idx = Number(indexStr);
+    if (buttonWasDown.get(idx)) {
+      window.flashdrive.mouseRelease(action);
+    }
+  }
+  buttonWasDown.clear();
 }
 
 window.addEventListener('gamepadconnected', (e) => {
@@ -125,23 +156,133 @@ window.addEventListener('beforeunload', () => {
   releaseAllHolds();
 });
 
-let pendingMove = false;
-const buttonWasDown = new Map();
+function updateOskFocus() {
+  window.flashdrive.oskFocus(oskRow, oskCol);
+}
 
-function releaseAllHolds() {
-  for (const [indexStr, { keys }] of Object.entries(HOLD_COMBOS)) {
+function moveOskFocus(dr, dc) {
+  const newRow = Math.max(0, Math.min(OSK_LAYOUT.length - 1, oskRow + dr));
+  oskRow = newRow;
+  oskCol = Math.max(0, Math.min(OSK_LAYOUT[oskRow].length - 1, oskCol + dc));
+  updateOskFocus();
+  showAction(`OSK focus: ${OSK_LAYOUT[oskRow][oskCol]}`);
+}
+
+async function toggleOsk() {
+  releaseAllHolds();
+  oskOpen = await window.flashdrive.oskToggle();
+  if (oskOpen) {
+    oskRow = 0;
+    oskCol = 0;
+    updateOskFocus();
+    showAction('OSK opened');
+  } else {
+    showAction('OSK closed');
+  }
+}
+
+async function pressOskKey() {
+  const key = OSK_LAYOUT[oskRow][oskCol];
+  if (key === 'space') {
+    await window.flashdrive.oskTypeChar(' ');
+    showAction('OSK → Space');
+  } else if (key === 'backspace') {
+    await window.flashdrive.keysTap(['backspace']);
+    showAction('OSK → Backspace');
+  } else if (key === 'enter') {
+    await window.flashdrive.keysTap(['enter']);
+    showAction('OSK → Enter');
+  } else if (key === 'close') {
+    await toggleOsk();
+  } else {
+    await window.flashdrive.oskTypeChar(key);
+    showAction(`OSK → ${key}`);
+  }
+}
+
+let pendingMove = false;
+
+function computeEdges(pad) {
+  const pressed = new Set();
+  const released = new Set();
+  for (let i = 0; i < pad.buttons.length; i++) {
+    const btn = pad.buttons[i];
+    if (!btn) continue;
+    const wasDown = buttonWasDown.get(i) ?? false;
+    const isDown = btn.pressed;
+    if (isDown && !wasDown) pressed.add(i);
+    if (!isDown && wasDown) released.add(i);
+    buttonWasDown.set(i, isDown);
+  }
+  return { pressed, released };
+}
+
+function handleNormalMode(edges) {
+  for (const [indexStr, { action }] of Object.entries(BUTTON_ACTIONS)) {
     const idx = Number(indexStr);
-    if (buttonWasDown.get(idx)) {
+    if (edges.pressed.has(idx)) {
+      showAction(`${label(idx)} → ${action} click`);
+      window.flashdrive.mouseClick(action);
+    }
+  }
+
+  for (const [indexStr, { keys, name }] of Object.entries(HOLD_COMBOS)) {
+    const idx = Number(indexStr);
+    if (edges.pressed.has(idx)) {
+      showAction(`${label(idx)} → hold ${keys.join('+')} (${name})`);
+      window.flashdrive.keysHold(keys);
+    } else if (edges.released.has(idx)) {
+      showAction(`${label(idx)} released`);
       window.flashdrive.keysRelease(keys);
     }
   }
-  for (const [indexStr, { action }] of Object.entries(HOLD_MOUSE)) {
+
+  for (const [indexStr, { keys, name }] of Object.entries(TAP_KEYS)) {
     const idx = Number(indexStr);
-    if (buttonWasDown.get(idx)) {
+    if (edges.pressed.has(idx)) {
+      showAction(`${label(idx)} → ${name}`);
+      window.flashdrive.keysTap(keys);
+    }
+  }
+
+  for (const [indexStr, { action, name }] of Object.entries(HOLD_MOUSE)) {
+    const idx = Number(indexStr);
+    if (edges.pressed.has(idx)) {
+      showAction(`${label(idx)} → ${name} start`);
+      window.flashdrive.mousePress(action);
+    } else if (edges.released.has(idx)) {
+      showAction(`${label(idx)} → ${name} end`);
       window.flashdrive.mouseRelease(action);
     }
   }
-  buttonWasDown.clear();
+}
+
+let lastStickDir = { x: 0, y: 0 };
+const NAV_STICK_THRESHOLD = 0.55;
+
+function stickDirection(x, y) {
+  let dx = 0, dy = 0;
+  if (x > NAV_STICK_THRESHOLD) dx = 1;
+  else if (x < -NAV_STICK_THRESHOLD) dx = -1;
+  if (y > NAV_STICK_THRESHOLD) dy = 1;
+  else if (y < -NAV_STICK_THRESHOLD) dy = -1;
+  return { x: dx, y: dy };
+}
+
+function handleOskMode(pad, edges) {
+  const stick = stickDirection(pad.axes[0] ?? 0, pad.axes[1] ?? 0);
+  if ((stick.x !== lastStickDir.x || stick.y !== lastStickDir.y) &&
+      (stick.x !== 0 || stick.y !== 0)) {
+    moveOskFocus(stick.y, stick.x);
+  }
+  lastStickDir = stick;
+
+  if (edges.pressed.has(12)) moveOskFocus(-1, 0);
+  if (edges.pressed.has(13)) moveOskFocus(1, 0);
+  if (edges.pressed.has(14)) moveOskFocus(0, -1);
+  if (edges.pressed.has(15)) moveOskFocus(0, 1);
+  if (edges.pressed.has(0)) pressOskKey();
+  if (edges.pressed.has(1)) toggleOsk();
 }
 
 async function pollGamepads() {
@@ -152,81 +293,34 @@ async function pollGamepads() {
     if (pad.axes.length >= 2) {
       const rawX = pad.axes[0];
       const rawY = pad.axes[1];
-      const x = applyDeadzone(rawX);
-      const y = applyDeadzone(rawY);
-
       lxEl.textContent = rawX.toFixed(2);
       lyEl.textContent = rawY.toFixed(2);
 
-      if ((x !== 0 || y !== 0) && !pendingMove) {
-        const dx = curve(x) * MAX_PIXELS_PER_FRAME;
-        const dy = curve(y) * MAX_PIXELS_PER_FRAME;
-        pendingMove = true;
-        window.flashdrive.mouseMoveBy(dx, dy).finally(() => {
-          pendingMove = false;
-        });
+      if (!oskOpen) {
+        const x = applyDeadzone(rawX);
+        const y = applyDeadzone(rawY);
+        if ((x !== 0 || y !== 0) && !pendingMove) {
+          const dx = curve(x) * MAX_PIXELS_PER_FRAME;
+          const dy = curve(y) * MAX_PIXELS_PER_FRAME;
+          pendingMove = true;
+          window.flashdrive.mouseMoveBy(dx, dy).finally(() => {
+            pendingMove = false;
+          });
+        }
       }
     }
 
-    for (const [indexStr, { action }] of Object.entries(BUTTON_ACTIONS)) {
-      const idx = Number(indexStr);
-      const btn = pad.buttons[idx];
-      if (!btn) continue;
-      const wasDown = buttonWasDown.get(idx) ?? false;
-      const isDown = btn.pressed;
-      if (isDown && !wasDown) {
-        showAction(`${label(idx)} → ${action} click`);
-        window.flashdrive.mouseClick(action);
-      }
-      buttonWasDown.set(idx, isDown);
+    const edges = computeEdges(pad);
+
+    if (edges.pressed.has(OSK_TOGGLE_BUTTON)) {
+      toggleOsk();
+    } else if (oskOpen) {
+      handleOskMode(pad, edges);
+    } else {
+      handleNormalMode(edges);
     }
 
-    for (const [indexStr, { keys, name }] of Object.entries(HOLD_COMBOS)) {
-      const idx = Number(indexStr);
-      const btn = pad.buttons[idx];
-      if (!btn) continue;
-      const wasDown = buttonWasDown.get(idx) ?? false;
-      const isDown = btn.pressed;
-      if (isDown && !wasDown) {
-        showAction(`${label(idx)} → hold ${keys.join('+')} (${name})`);
-        window.flashdrive.keysHold(keys);
-      } else if (!isDown && wasDown) {
-        showAction(`${label(idx)} released`);
-        window.flashdrive.keysRelease(keys);
-      }
-      buttonWasDown.set(idx, isDown);
-    }
-
-    for (const [indexStr, { keys, name }] of Object.entries(TAP_KEYS)) {
-      const idx = Number(indexStr);
-      const btn = pad.buttons[idx];
-      if (!btn) continue;
-      const wasDown = buttonWasDown.get(idx) ?? false;
-      const isDown = btn.pressed;
-      if (isDown && !wasDown) {
-        showAction(`${label(idx)} → ${name}`);
-        window.flashdrive.keysTap(keys);
-      }
-      buttonWasDown.set(idx, isDown);
-    }
-
-    for (const [indexStr, { action, name }] of Object.entries(HOLD_MOUSE)) {
-      const idx = Number(indexStr);
-      const btn = pad.buttons[idx];
-      if (!btn) continue;
-      const wasDown = buttonWasDown.get(idx) ?? false;
-      const isDown = btn.pressed;
-      if (isDown && !wasDown) {
-        showAction(`${label(idx)} → ${name} start`);
-        window.flashdrive.mousePress(action);
-      } else if (!isDown && wasDown) {
-        showAction(`${label(idx)} → ${name} end`);
-        window.flashdrive.mouseRelease(action);
-      }
-      buttonWasDown.set(idx, isDown);
-    }
-
-    if (pad.axes.length >= 4) {
+    if (!oskOpen && pad.axes.length >= 4) {
       const rawRY = pad.axes[3];
       const ry = Math.abs(rawRY) < SCROLL_DEADZONE ? 0 : rawRY;
       if (ry !== 0) {
